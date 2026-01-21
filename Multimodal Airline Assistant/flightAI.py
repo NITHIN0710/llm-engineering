@@ -9,6 +9,13 @@ from PIL import Image
 import requests
 import pyttsx3
 
+import asyncio
+import sys
+
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
 load_dotenv(override=True)
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
@@ -84,33 +91,49 @@ def artist(city):
     colorful scenery, cinematic lighting
     """
 
-    url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+    url = "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0"
 
     headers = {
-        "Authorization": f"Bearer {hf_api_key}",
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "inputs": prompt
+        "Authorization": f"Bearer {hf_api_key}"
     }
 
-    response = requests.post(url, headers=headers, json=payload, timeout=15)
+    payload = {"inputs": prompt}
 
-    if response.status_code != 200:
-        raise Exception("Image generation failed")
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=45)
 
-    image_bytes = response.content
-    return Image.open(BytesIO(image_bytes))
+        print("HF status:", response.status_code)
+        print("HF content-type:", response.headers.get("Content-Type"))
+
+        if response.status_code != 200:
+            print("HF error body:", response.text)
+            return None
+
+        content_type = response.headers.get("Content-Type", "")
+        if "image" not in content_type:
+            print("HF non-image response:", response.text)
+            return None
+
+        return Image.open(BytesIO(response.content))
+
+    except Exception as e:
+        print("HF exception:", e)
+        return None
+
 
 # TEXT TO SPEECH GENERATION
 
-engine = pyttsx3.init()
-
 def talker(message):
-    engine.save_to_file(message, "speech.wav")
-    engine.runAndWait()
-    return "speech.wav"
+    try:
+        engine = pyttsx3.init()
+        engine.save_to_file(message, "speech.wav")
+        engine.runAndWait()
+        engine.stop()
+        return "speech.wav"
+    except Exception as e:
+        print("TTS error:", e)
+        return None
+
 
 def chat(history):
     history = [{"role": h["role"], "content": h["content"]} for h in history]
@@ -172,4 +195,10 @@ with gr.Blocks() as ui:
     
     message.submit(put_message_in_chatbot, inputs=[message, chatbot], outputs=[message, chatbot]).then(fn=chat, inputs=chatbot, outputs=[chatbot, audio_output, image_output])
 
-ui.launch(inbrowser=True, auth=("nithin", "0704"))
+ui.launch(
+    inbrowser=True,
+    auth=("nithin", "0704"),
+    server_name="127.0.0.1",
+    server_port=7860,
+    show_error=True
+)
