@@ -14,7 +14,7 @@ MODEL = "openai/gpt-oss-120b"
 DB_NAME = str(Path(__file__).parent / "vector_db")
 
 embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-RETRIEVAL_K = 5
+RETRIEVAL_K = 8
 
 SYSTEM_PROMPT = """
 You are a knowledgeable, friendly assistant representing the company Insurellm.
